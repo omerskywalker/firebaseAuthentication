@@ -207,3 +207,96 @@ later? State a recommendation with reasoning — but keep it short (3-5 bullet p
 Be specific with file paths and line counts. Short code excerpts (10-15 lines) where 
 they clarify a point, but prefer prose descriptions. If any section can't be answered 
 from the code, say so explicitly.
+
+///////////////////////
+////////////next
+///////////////////////////////////////////////
+
+We need to fix critical gaps between the L3 Payment Detail page render and the Figma 
+design spec. Before making any changes, I need a thorough gap analysis. I will paste 
+Figma reference screenshots and the current local render below so you understand what 
+we're targeting.
+
+## Phase 1: Investigation only (NO code changes)
+
+### Step 1: Read key files in full
+- PaymentDetailsPageL3.tsx (read entire file)
+- PaymentDetailsL3.tsx (read entire file)  
+- SectionHeaderSummaryL3.tsx (focus on lines 1-300 to understand FX/non-FX branching)
+- GPIExternalTrackerL3.tsx (understand when/how it renders)
+- The Pepper Card + CardHeader + CardContent + CardFooter types from @pepper/reactkit
+- The Pepper L3PageHeader type definition — I need to know exactly what props it accepts
+
+### Step 2: Report current header architecture
+For the FULL PAGE view (not drawer), walk me through exactly what renders at the top 
+of the page today:
+1. Is there a Pepper Card wrapping the header content, or is it just L3PageHeader + 
+   loose content below?
+2. Does L3PageHeader's title prop accept ReactElement or only string?
+3. Where does the "Scheduled for <date>" line render today? What component?
+4. Where does the info/error banner render? Is it inside a Card or between Cards?
+5. For FX payments specifically: is GPIExternalTrackerL3 being rendered on the full 
+   page? If so, where in the tree?
+6. Is the `variant="gb"` prop still being passed? (DOM inspector shows 
+   pepperFullPageHeader-gb class, suggesting yes.)
+
+### Step 3: Compare against target design
+The target design has these elements grouped as ONE Pepper Card at the top:
+- Overline: "Payment details"
+- Title: amount as Kpi (x-large for page, medium for drawer) + method + "to" + 
+  recipient name, composed with Text elements
+- Scheduled date line
+- Status pill (Tag with bordered + category)
+- Info/warning/error banner (when applicable)
+
+Below that card, separately:
+- For FX payments: the GPI tracker with "You pay / They get" amounts
+- Submission history card
+- Sender details / Recipient details two-column card  
+- Additional details card
+
+Tell me for each element above:
+- Is it currently rendered? Where?
+- Is it in the correct position?
+- Is it using the correct component primitive?
+- Is it nested in the correct Card structure?
+
+### Step 4: Confirm whether the header Card structure exists at all
+My hypothesis: the L3 page currently uses L3PageHeader but does NOT wrap the header 
+region in a Pepper Card. The new design wants everything from "Payment details" 
+overline through the banner to be one Card. 
+
+Is that hypothesis correct? If yes, this is a structural change, not just a prop update.
+
+## Phase 2: Recommendation (after Phase 1 report)
+
+After I review your Phase 1 report, we'll decide the sequencing. Options I'm considering:
+
+A) If L3PageHeader accepts ReactElement and already wraps in a Card internally: just 
+   refactor the title prop to be a composed ReactElement and add the missing elements 
+   (overline, status pill, scheduled date) as L3PageHeader slots.
+
+B) If L3PageHeader is just a shell with breadcrumbs + title + actions (no Card 
+   wrapper): replace L3PageHeader with a full Pepper Card composition. This is 
+   bigger, but matches the design intent more cleanly.
+
+C) If L3PageHeader HAS Card internals but they're not the shape we need: augment 
+   with a custom header section above the body content.
+
+Tell me which option matches the reality.
+
+## Phase 3: Constraints for any future change (reference only)
+
+When we do start making changes, these rules apply:
+- Every change is its own commit
+- Full-page and drawer paths need separate handling — isDrawerView prop gates behavior
+- FX payments (international wire with USD→foreign) need GPIExternalTrackerL3 
+  rendering; non-FX payments do not
+- Do not modify BAU (PaymentDetails.tsx, PaymentDetailsPage.tsx, PaymentDetailsHeader.tsx)
+- Do not migrate DataList → LabelValue (separate ticket DCBMM1-28769)
+- Use only @pepper/reactkit and @salt-ds/core imports
+- Use var(--salt-spacing-*) and var(--salt-content-*-foreground) tokens only
+- L3PageHeader.tagItems is string[] only per recon constraint — if we need 
+  category/sentiment on tags, use AdditionalSection
+
+STOP after Phase 1. Do not write code. Just produce the gap analysis report.
